@@ -11,6 +11,8 @@ import (
 
 func PrintClientHelp() {
 	fmt.Println("Possible commands:")
+	fmt.Println("Possible locations are: americas, europe, africa, asia, antarctica, australia")
+	fmt.Println("Possible unit types are: infantry, cavalry, artillery")
 	fmt.Println("* move <location> <unitID> <unitID> <unitID>...")
 	fmt.Println("    example:")
 	fmt.Println("    move asia 1")
