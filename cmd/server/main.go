@@ -31,6 +31,14 @@ func main() {
 
 	fmt.Println("connection to rabbitmq success")
 
+	pubsub.DeclareAndBind(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		pubsub.SimpleQueueDurable,
+	)
+
 	gamelogic.PrintServerHelp()
 	for {
 		input := gamelogic.GetInput()
@@ -41,7 +49,7 @@ func main() {
 		command := input[0]
 		switch command {
 		case "pause":
-			fmt.Printf("Sending pause messages")
+			fmt.Println("Sending pause messages")
 			err = pubsub.PublishJSON(
 				pubCh,
 				routing.ExchangePerilDirect,
@@ -55,7 +63,7 @@ func main() {
 			}
 
 		case "resume":
-			fmt.Printf("Sending resume messages")
+			fmt.Println("Sending resume messages")
 			err = pubsub.PublishJSON(
 				pubCh,
 				routing.ExchangePerilDirect,
@@ -77,12 +85,4 @@ func main() {
 		}
 
 	}
-	//
-	// // wait for ctrl+c
-	// signalChan := make(chan os.Signal, 1)
-	// signal.Notify(signalChan, os.Interrupt)
-	// <-signalChan
-	//
-	// fmt.Println("signal receive, shutdown server")
-
 }
