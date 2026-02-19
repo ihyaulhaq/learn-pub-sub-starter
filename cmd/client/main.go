@@ -71,7 +71,7 @@ func main() {
 		routing.WarRecognitionsPrefix,
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.SimpleQueueDurable,
-		handlerWar(gameState),
+		handlerWar(gameState, ch),
 	)
 	if err != nil {
 		log.Fatalf("can't subscribe to war queue: %v", err)
@@ -178,27 +178,42 @@ func handlerMove(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.ArmyM
 	}
 }
 
-func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.AckType {
+func handlerWar(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Print("> ")
 
-		outcome, _, _ := gs.HandleWar(rw)
+		outcome, winner, loser := gs.HandleWar(rw)
+		var msg string
 
 		switch outcome {
 		case gamelogic.WarOutcomeNotInvolved:
 			return pubsub.NackRequeue
+
 		case gamelogic.WarOutcomeNoUnits:
 			return pubsub.NackDiscard
+
 		case gamelogic.WarOutcomeOpponentWon:
-			return pubsub.Ack
+			msg = fmt.Sprintf("%v won a war against %v\n", winner, loser)
+			// return pubsub.Ack
+
 		case gamelogic.WarOutcomeYouWon:
-			return pubsub.Ack
+			msg = fmt.Sprintf("%v won a war against %v\n", winner, loser)
+			// return pubsub.Ack
+
 		case gamelogic.WarOutcomeDraw:
-			return pubsub.Ack
+			msg = fmt.Sprintf("A war between %v and %v resulted in a draw\n", winner, loser)
+			// return pubsub.Ack
+
 		default:
 			fmt.Print("error: unknown outcome")
 			return pubsub.NackDiscard
 		}
 
+		err := pubsub.PublishGameLog(ch, gs.Player.Username, msg)
+		if err != nil {
+			return pubsub.NackRequeue
+		}
+
+		return pubsub.Ack
 	}
 }
