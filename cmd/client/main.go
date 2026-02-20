@@ -211,6 +211,7 @@ func handlerWar(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.Recogn
 
 		err := pubsub.PublishGameLog(ch, gs.Player.Username, msg)
 		if err != nil {
+			fmt.Print("error")
 			return pubsub.NackRequeue
 		}
 

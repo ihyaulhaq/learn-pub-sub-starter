@@ -31,13 +31,17 @@ func main() {
 
 	fmt.Println("connection to rabbitmq success")
 
-	pubsub.DeclareAndBind(
+	err = pubsub.SubscribeGob(
 		conn,
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,
-		routing.GameLogSlug+".*",
+		routing.GameLogSlug+".#",
 		pubsub.SimpleQueueDurable,
+		handleLog(),
 	)
+	if err != nil {
+		log.Fatalf("cant subscibe to log queue: %v", err)
+	}
 
 	gamelogic.PrintServerHelp()
 	for {
@@ -83,6 +87,20 @@ func main() {
 		default:
 			fmt.Println("unknown command")
 		}
+
+	}
+}
+
+func handleLog() func(routing.GameLog) pubsub.AckType {
+	return func(gl routing.GameLog) pubsub.AckType {
+
+		defer fmt.Print("> ")
+
+		err := gamelogic.WriteLog(gl)
+		if err != nil {
+			return pubsub.NackRequeue
+		}
+		return pubsub.Ack
 
 	}
 }

@@ -1,8 +1,9 @@
 package pubsub
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
-	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -15,15 +16,16 @@ const (
 	NackDiscard
 )
 
-func SubscribeJSON[T any](
+func subscribe[T any](
 	conn *amqp.Connection,
 	exchange,
 	queueName,
 	key string,
 	queueType SimpleQueueType,
 	handler func(T) AckType,
+	unmarshal func([]byte) (T, error),
 ) error {
-	// ensure q exist
+
 	ch, q, err := DeclareAndBind(
 		conn,
 		exchange,
@@ -35,7 +37,6 @@ func SubscribeJSON[T any](
 		return err
 	}
 
-	// consume the q from rabbitmq
 	msgs, err := ch.Consume(
 		q.Name,
 		"",
@@ -51,27 +52,74 @@ func SubscribeJSON[T any](
 
 	go func() {
 		for msg := range msgs {
-			var payload T
-			// parse the body to T type
-			err := json.Unmarshal(msg.Body, &payload)
+			payload, err := unmarshal(msg.Body)
 			if err != nil {
 				msg.Nack(false, false)
 				continue
 			}
 
-			// handle messages based on the ack type
 			switch handler(payload) {
 			case Ack:
-				log.Println("Ack: message processed successfully")
 				msg.Ack(false)
 			case NackRequeue:
-				log.Println("NackRequeue: message requeued")
 				msg.Nack(false, true)
 			case NackDiscard:
-				log.Println("NackDiscard: message discarded")
 				msg.Nack(false, false)
 			}
 		}
 	}()
+
 	return nil
+}
+
+func SubscribeJSON[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+) error {
+
+	unmarshal := func(body []byte) (T, error) {
+		var val T
+		err := json.Unmarshal(body, &val)
+		return val, err
+	}
+	return subscribe(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		unmarshal,
+	)
+}
+
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+) error {
+
+	unmarshal := func(body []byte) (T, error) {
+		var val T
+		err := gob.NewDecoder(bytes.NewReader(body)).Decode(&val)
+		return val, err
+	}
+
+	return subscribe(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		unmarshal,
+	)
+
 }

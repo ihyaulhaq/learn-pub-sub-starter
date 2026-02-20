@@ -78,17 +78,27 @@ func DeclareAndBind(
 
 func PublishGob[T any](ch *amqp.Channel, exchange, key string, val T) error {
 	var network bytes.Buffer // Stand-in for a network connection
+
 	enc := gob.NewEncoder(&network)
 	err := enc.Encode(val)
+
 	if err != nil {
 		return err
 	}
-	body := network.Bytes()
-	err = ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp.Publishing{
 
-		ContentType: "application/gob",
-		Body:        body,
-	})
+	body := network.Bytes()
+	err = ch.PublishWithContext(
+		context.Background(),
+		exchange,
+		key,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "application/gob",
+			Body:        body,
+		},
+	)
+
 	if err != nil {
 		return err
 	}
@@ -102,6 +112,7 @@ func PublishGameLog(ch *amqp.Channel, username string, message string) error {
 		Message:     message,
 		Username:    username,
 	}
+
 	return PublishGob(
 		ch,
 		routing.ExchangePerilTopic,
